@@ -8,7 +8,10 @@ class FileLoader:
     def __init__(self, file_path, file_name):
         self.file_path = file_path
         self.file_name  = file_name
-        self.file_address = self.file_path + "\\" + self.file_name
+        if self.file_path == "" :
+            self.file_address = self.file_name
+        else :
+            self.file_address = self.file_path + "\\" + self.file_name
 
     def load_file(self, classic_sheet_name, precarity_sheet_name, future = False):
         """
@@ -26,7 +29,7 @@ class FileLoader:
         precarity_raw_df["Date"] = pd.to_datetime(precarity_raw_df["Date"], format="%Y-%m-%d")
 
         if not future :
-            classic_raw_df, precarity_raw_df = classic_raw_df["Date", "SPOT"], precarity_raw_df["Date", "SPOT"]
+            classic_raw_df, precarity_raw_df = classic_raw_df[["Date", "SPOT"]], precarity_raw_df[["Date", "SPOT"]]
             classic_raw_df.dropna(inplace=True)
             precarity_raw_df.dropna(inplace=True)
 
