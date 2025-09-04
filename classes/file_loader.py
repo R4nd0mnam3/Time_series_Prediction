@@ -10,7 +10,7 @@ class FileLoader:
         self.file_name  = file_name
         self.file_address = self.file_path + "\\" + self.file_name
 
-    def load_file(self, future, classic_sheet_name, precarity_sheet_name):
+    def load_file(self, classic_sheet_name, precarity_sheet_name, future = False):
         """
         Description : Loads the file input in file_path and file_name
         Arguments :
