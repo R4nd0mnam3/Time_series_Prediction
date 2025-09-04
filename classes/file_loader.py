@@ -39,7 +39,7 @@ class FileLoader:
 
         return classic_raw_df, precarity_raw_df
     
-    def interpolate_dataframe(self, raw_data, columns):
+    def interpolate_dataframe(self, raw_data, columns=["SPOT"]):
         """
         Description : Interpolates the dataframe transforming the data from weekly to daily by doing linear interpolation on working days and adding some noise
         Arguments :
