@@ -10,6 +10,9 @@ class ARMA :
         self.train_test_ratio = train_test_ratio
     
     def train_test_split(self):
+        """
+        Description : Split the data between train and test
+        """
         split_index = int(len(self.dependent_time_series) * self.train_test_ratio)
         self.train_dependent = self.dependent_time_series[:split_index]
         self.test_dependent = self.dependent_time_series[split_index:]
@@ -38,7 +41,7 @@ class ARMA :
 
     def get_ma_order(series, max_lag=10):
         """
-        Description : Selects the maximum order of the AR model using PACF cutoff method
+        Description : Selects the maximum order of the MA model using ACF cutoff method
         Argumments:
         - series (pd.series(float)) : Time series to analyze
         - max_lag (int) : Maximum number of lags to consider
@@ -53,45 +56,24 @@ class ARMA :
                 break
         return int(order)
     
-
-    def select_arma_orders(series, max_p=5, max_q=5, exog=None, trend="c"):
-
-    ic_rows = []
-
-    best_aic = np.inf
-    best_aic_order = (0, 0)
-    best_bic = np.inf
-    best_bic_order = (0, 0)
-
-    for p in range(max_p + 1):
-        for q in range(max_q + 1):
-            # Skip the trivial (0,0) if you don't want white noise; keep it here for completeness
-            try:
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    model = ARIMA(endog=y, exog=exog, order=(p, 0, q), trend=trend, enforce_stationarity=False, enforce_invertibility=False)
-                    fit = model.fit()
-                aic = fit.aic
-                bic = fit.bic
-                converged = True
-            except Exception:
-                aic = np.inf
-                bic = np.inf
-                converged = False
-
-            ic_rows.append({"p": p, "q": q, "aic": aic, "bic": bic, "converged": converged})
-
-            if aic < best_aic:
-                best_aic = aic
-                best_aic_order = (p, q)
-            if bic < best_bic:
-                best_bic = bic
-                best_bic_order = (p, q)
-
-    return {
-        "best_aic_order": best_aic_order,
-        "best_aic": best_aic,
-        "best_bic_order": best_bic_order,
-        "best_bic": best_bic,
-        "ic_table": ic_rows,
-    }
+    def get_model(series, ma_order, ar_order, integ=0):
+        """
+        Description : Fits an ARIMA model to the time series given the MA and AR orders
+        Arguments:
+        - series (pd.series(float)) : Time series to fit
+        - ma_order (int) : Order of the MA model
+        - ar_order (int) : Order of the AR model
+        """
+        model = ARIMA(series, order=(ar_order, integ, ma_order))
+        model_fit = model.fit()
+        
+        return model_fit
+    
+    def select_model(series, max_ma_order, max_ar_order):
+        """
+        Description : Selects the best ARIMA model using the AIC and BIC criterions
+        Arguments:
+        - series (pd.series(float)) : Time series to fit
+        - max_ma_order (int) : Maximum order of the MA model to consider
+        - max_ar_order (int) : Maximum order of the AR model to consider
+        """
