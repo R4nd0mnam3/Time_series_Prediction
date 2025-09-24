@@ -28,7 +28,7 @@ class ARMA :
         - series (pd.series(float)) : Time series to analyze
         - max_lag (int) : Maximum number of lags to consider
         """
-        pacf_vals, confint = pacf(y, nlags=max_lag, alpha=0.05, method="yw")
+        pacf_vals, confint = pacf(series, nlags=max_lag, alpha=0.05, method="yw")
         
         order = 0
         for v, (lo, hi) in zip(pacf_vals[1:], confint[1:]):
@@ -46,7 +46,7 @@ class ARMA :
         - series (pd.series(float)) : Time series to analyze
         - max_lag (int) : Maximum number of lags to consider
         """
-        acf_vals, confint = acf(y, nlags=max_lag, alpha=0.05, fft=True)
+        acf_vals, confint = acf(series, nlags=max_lag, alpha=0.05, fft=True)
         
         order = 0
         for v, (lo, hi) in zip(acf_vals[1:], confint[1:]):
