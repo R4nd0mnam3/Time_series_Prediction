@@ -22,15 +22,16 @@ class ARMA :
             self.train_explanatory = self.explanatory_time_series[:split_index]
             self.test_explanatory = self.explanatory_time_series[split_index:]
 
-    def get_ar_max_order(series, max_lag=10):
+    def get_ar_max_order(self, max_lag=10):
         """
         Description : Selects the maximum order of the AR model using PACF cutoff method
         Argumments:
         - series (pd.series(float)) : Time series to analyze
         - max_lag (int) : Maximum number of lags to consider
         """
-        pacf_vals, confint = pacf(series, nlags=max_lag, alpha=0.05, method="yw")
-        
+        pacf_vals, confint = pacf(self.train_dependent, nlags=max_lag, alpha=0.05, method="yw")
+        print(pacf_vals)
+        print(confint)
         order = 0
         for v, (lo, hi) in zip(pacf_vals[1:], confint[1:]):
             if v < lo or v > hi:
@@ -41,15 +42,16 @@ class ARMA :
         return int(order)
 
 
-    def get_ma_max_order(series, max_lag=10):
+    def get_ma_max_order(self, max_lag=10):
         """
         Description : Selects the maximum order of the MA model using ACF cutoff method
         Argumments:
         - series (pd.series(float)) : Time series to analyze
         - max_lag (int) : Maximum number of lags to consider
         """
-        acf_vals, confint = acf(series, nlags=max_lag, alpha=0.05, fft=True)
-        
+        acf_vals, confint = acf(self.train_dependent, nlags=max_lag, alpha=0.05, fft=True)
+        print(acf_vals)
+        print(confint)
         order = 0
         for v, (lo, hi) in zip(acf_vals[1:], confint[1:]):
             if v < lo or v > hi:
@@ -70,7 +72,7 @@ class ARMA :
         model = ARIMA(series, order=(ar_order, integ, ma_order))
         self.model_fit = model.fit()
     
-    def select_model(series, max_ma_order, max_ar_order, ljung_lags=(15,15), alpha=0.05):
+    def select_model(self, max_ma_order, max_ar_order, ljung_lags=(15,15), alpha=0.05):
         """
         Description : Selects the best ARIMA model using the AIC and BIC criterions
         Arguments:
@@ -89,14 +91,16 @@ class ARMA :
         
         for ma_order in range(max_ma_order + 1):
             for ar_order in range(max_ar_order + 1):
-                model_fit = ARMA.get_model(series, ma_order, ar_order)
+                model_fit = ARMA.get_model(self.train_dependent, ma_order, ar_order)
                 aic = model_fit.aic
                 bic = model_fit.bic
                 residuals = model_fit.resid
+
+                # We conduct Ljung_Box test to see if the residuals are white noise
                 lb = acorr_ljungbox(residuals, lags=ljung_lags, return_df=True)
                 lb_pvalue_min = float(lb["lb_pvalue"].min())
-                
-                if lb_pvalue_min > alpha:
+                # Null hypothesis : the residuals are white noise
+                if lb_pvalue_min > alpha: # If pvalue > alpha we accept the null hypothesis and the model is valid
                     if aic < best_aic:
                         best_aic = aic
                         best_aic_order = (ar_order, 0, ma_order)
@@ -121,4 +125,3 @@ class ARMA :
                 "bic": best_bic
             }
         }
-    
