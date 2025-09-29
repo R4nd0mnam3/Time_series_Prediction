@@ -63,7 +63,7 @@ class FileLoader:
                 intercept = start_price - slope * 1
 
                 # Adding some incertitude
-                mean, std = 0, abs(start_price - end_price)/2 # Standard deviation such that noise has 95% chance of being within start_price and end_price
+                mean, std = 0, abs(start_price - end_price)/(2*1.96) # Standard deviation such that noise has 95% chance of being within start_price and end_price
                 noise = np.random.normal(loc=mean, scale=std, size=n_days-2)
                 
                 for i, day in enumerate(business_days[1:-1]) :

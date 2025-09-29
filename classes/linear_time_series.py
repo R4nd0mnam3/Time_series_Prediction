@@ -87,6 +87,7 @@ class  LineaTimeSeriesModel:
                 residuals = model_fit.resid
                 lb = acorr_ljungbox(residuals, lags=ljung_lags, return_df=True)
                 lb_pvalue_min = float(lb["lb_pvalue"].min())
+                print(f"The p-value of the L-JungBox test is {lb_pvalue_min} for the model ARIMA({ar_order},0,{ma_order}) with AIC = {aic}")
 
                 # Null hypothesis : the residuals are white noise
                 if lb_pvalue_min > alpha: # If pvalue > alpha we accept the null hypothesis and the model is valid
@@ -96,7 +97,7 @@ class  LineaTimeSeriesModel:
                         best_aic_model = model_fit
 
         return {
-            "aic": {
+            "aic" : {
                 "order": best_aic_order,
                 "model": best_aic_model,
                 "aic": best_aic
