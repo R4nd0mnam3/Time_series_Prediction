@@ -26,15 +26,13 @@ class ARMA :
         """
         Description : Selects the maximum order of the AR model using PACF cutoff method
         Argumments:
-        - series (pd.series(float)) : Time series to analyze
         - max_lag (int) : Maximum number of lags to consider
         """
         pacf_vals, confint = pacf(self.train_dependent, nlags=max_lag, alpha=0.05, method="yw")
-        print(pacf_vals)
-        print(confint)
         order = 0
-        for v, (lo, hi) in zip(pacf_vals[1:], confint[1:]):
-            if v < lo or v > hi:
+
+        for lo, hi in confint[1:]:
+            if hi<0 or lo>0:
                 order += 1
             else:
                 break
@@ -46,20 +44,19 @@ class ARMA :
         """
         Description : Selects the maximum order of the MA model using ACF cutoff method
         Argumments:
-        - series (pd.series(float)) : Time series to analyze
         - max_lag (int) : Maximum number of lags to consider
         """
         acf_vals, confint = acf(self.train_dependent, nlags=max_lag, alpha=0.05, fft=True)
-        print(acf_vals)
-        print(confint)
         order = 0
-        for v, (lo, hi) in zip(acf_vals[1:], confint[1:]):
-            if v < lo or v > hi:
+        
+        for lo, hi in confint[1:]:
+            if hi<0 or lo>0:
                 order += 1
             else:
                 break
-
+        
         return int(order)
+
     
     def get_model(self, series, ma_order, ar_order, integ=0):
         """
