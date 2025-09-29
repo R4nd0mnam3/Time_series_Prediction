@@ -3,11 +3,9 @@ from statsmodels.tsa.stattools import pacf, acf
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.stats.diagnostic import acorr_ljungbox
 
-class ARMA :
-    def __init__(self, dependent_time_series, train_test_ratio = 0.8, arimax = False, explanatory_time_series = None):
-        self.arimax = arimax
+class  LineaTimeSeriesModel:
+    def __init__(self, dependent_time_series, train_test_ratio = 0.8):
         self.dependent_time_series = dependent_time_series
-        self.explanatory_time_series = explanatory_time_series
         self.train_test_ratio = train_test_ratio
     
     def train_test_split(self):
@@ -18,10 +16,6 @@ class ARMA :
         self.train_dependent = self.dependent_time_series[:split_index]
         self.test_dependent = self.dependent_time_series[split_index:]
         
-        if self.arimax and self.explanatory_time_series is not None:
-            self.train_explanatory = self.explanatory_time_series[:split_index]
-            self.test_explanatory = self.explanatory_time_series[split_index:]
-
     def get_ar_max_order(self, max_lag=10):
         """
         Description : Selects the maximum order of the AR model using PACF cutoff method
@@ -67,58 +61,58 @@ class ARMA :
         - ar_order (int) : Order of the AR model
         """
         model = ARIMA(series, order=(ar_order, integ, ma_order))
-        self.model_fit = model.fit()
+        model_fit = model.fit()
+
+        return model_fit
     
     def select_model(self, max_ma_order, max_ar_order, ljung_lags=(15,15), alpha=0.05):
         """
-        Description : Selects the best ARIMA model using the AIC and BIC criterions
+        Description : Selects the best ARIMA model using the AIC criteria
         Arguments:
-        - series (pd.series(float)) : Time series to fit
         - max_ma_order (int) : Maximum order of the MA model to consider
         - max_ar_order (int) : Maximum order of the AR model to consider
         - ljung_lags (int) : Number of lags to consider for the residuals analysis
         - alpha (float) : Significance level for the Ljung-Box test
         """
         best_aic = np.inf
-        best_bic = np.inf
         best_aic_order = None
-        best_bic_order = None
         best_aic_model = None
-        best_bic_model = None
         
         for ma_order in range(max_ma_order + 1):
             for ar_order in range(max_ar_order + 1):
-                model_fit = ARMA.get_model(self.train_dependent, ma_order, ar_order)
+                model_fit = self.get_model(self.train_dependent, ma_order, ar_order)
                 aic = model_fit.aic
-                bic = model_fit.bic
-                residuals = model_fit.resid
 
                 # We conduct Ljung_Box test to see if the residuals are white noise
+                residuals = model_fit.resid
                 lb = acorr_ljungbox(residuals, lags=ljung_lags, return_df=True)
                 lb_pvalue_min = float(lb["lb_pvalue"].min())
+
                 # Null hypothesis : the residuals are white noise
                 if lb_pvalue_min > alpha: # If pvalue > alpha we accept the null hypothesis and the model is valid
                     if aic < best_aic:
                         best_aic = aic
                         best_aic_order = (ar_order, 0, ma_order)
                         best_aic_model = model_fit
-                    
-                    if bic < best_bic:
-                        best_bic = bic
-                        best_bic_order = (ar_order, 0, ma_order)
-                        best_bic_model = model_fit
-                else :
-                    return None
 
         return {
             "aic": {
                 "order": best_aic_order,
                 "model": best_aic_model,
                 "aic": best_aic
-            },
-            "bic": {
-                "order": best_bic_order,
-                "model": best_bic_model,
-                "bic": best_bic
-            }
-        }
+            }}
+    
+    def model_prediction(self, model):
+        """
+        Descritption : Returns the prediction for both the training and testing sets
+        - model : Fitted ARIMA model
+        Arguments: 
+        - model (ARIMA) : Fitted ARIMA model
+        """
+        start_index = 0
+        end_index = len(self.dependent_time_series)
+        prediction = model.predict(start=start_index, end=end_index-1)
+        train_pred = prediction[:len(self.train_dependent)]
+        test_pred = prediction[len(self.train_dependent):]
+
+        return train_pred, test_pred
