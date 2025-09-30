@@ -28,7 +28,7 @@ class model_metrics:
         train_mae = np.mean(np.abs(self.train_real - self.train_pred))
         test_mae = np.mean(np.abs(self.test_real - self.test_pred))
 
-        return train_mae, test_mae
+        return float(train_mae), float(test_mae)
 
     def rmse(self):
         """
@@ -37,7 +37,7 @@ class model_metrics:
         train_rmse = np.sqrt(mean_squared_error(self.train_real, self.train_pred))
         test_rmse = np.sqrt(mean_squared_error(self.test_real, self.test_pred))
 
-        return train_rmse, test_rmse
+        return float(train_rmse), float(test_rmse)
     
     def mape(self):
         """
@@ -46,7 +46,7 @@ class model_metrics:
         train_mape = np.mean(np.abs((self.train_real - self.train_pred) / self.train_real)) * 100
         test_mape = np.mean(np.abs((self.test_real - self.test_pred) / self.test_real)) * 100
 
-        return train_mape, test_mape
+        return float(train_mape), float(test_mape)
     
     def r2(self):
         """
@@ -60,9 +60,9 @@ class model_metrics:
         test_ss_tot = np.sum((self.test_real - np.mean(self.test_real)) ** 2)
         test_r2 = 1 - (test_ss_res / test_ss_tot)
 
-        return train_r2, test_r2
+        return float(train_r2), float(test_r2)
     
-    def all_metrics(self):
+    def get_all_metrics(self):
         """
         Description : Computes all metrics for both train and test sets
         """
