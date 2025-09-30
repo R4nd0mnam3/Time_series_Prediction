@@ -3,19 +3,12 @@ from statsmodels.tsa.stattools import pacf, acf
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.stats.diagnostic import acorr_ljungbox
 
-class  LineaTimeSeriesModel:
+import classes.tools as tools
+
+class  LineaTimeSeriesModel(tools.train_test_split):
     def __init__(self, dependent_time_series, train_test_ratio = 0.8):
-        self.dependent_time_series = dependent_time_series
-        self.train_test_ratio = train_test_ratio
+        super().__init__(dependent_time_series, train_test_ratio)
     
-    def train_test_split(self):
-        """
-        Description : Split the data between train and test
-        """
-        split_index = int(len(self.dependent_time_series) * self.train_test_ratio)
-        self.train_dependent = self.dependent_time_series[:split_index]
-        self.test_dependent = self.dependent_time_series[split_index:]
-        
     def get_ar_max_order(self, max_lag=10):
         """
         Description : Selects the maximum order of the AR model using PACF cutoff method

@@ -1,0 +1,87 @@
+import numpy as np
+from sklearn.metrics import mean_squared_error
+
+class train_test_split:
+    def __init__(self, dependent_time_series, train_test_ratio=0.8):
+        self.dependent_time_series = dependent_time_series
+        self.train_test_ratio = train_test_ratio
+    
+    def train_test_split(self):
+        """
+        Description : Split the data between train and test
+        """
+        split_index = int(len(self.dependent_time_series) * self.train_test_ratio)
+        self.train_dependent = self.dependent_time_series[:split_index]
+        self.test_dependent = self.dependent_time_series[split_index:]
+
+class model_metrics:
+    def __init__(self, train_real, train_pred, test_real, test_pred):
+        self.train_real = train_real
+        self.train_pred = train_pred
+        self.test_real = test_real
+        self.test_pred = test_pred
+
+    def mae(self):
+        """
+        Description : Computes the MAE for both train and test sets
+        """
+        train_mae = np.mean(np.abs(self.train_real - self.train_pred))
+        test_mae = np.mean(np.abs(self.test_real - self.test_pred))
+
+        return train_mae, test_mae
+
+    def rmse(self):
+        """
+        Description : Computes the RMSE for both train and test sets
+        """
+        train_rmse = np.sqrt(mean_squared_error(self.train_real, self.train_pred))
+        test_rmse = np.sqrt(mean_squared_error(self.test_real, self.test_pred))
+
+        return train_rmse, test_rmse
+    
+    def mape(self):
+        """
+        Description : Computes the MAPE for both train and test sets
+        """
+        train_mape = np.mean(np.abs((self.train_real - self.train_pred) / self.train_real)) * 100
+        test_mape = np.mean(np.abs((self.test_real - self.test_pred) / self.test_real)) * 100
+
+        return train_mape, test_mape
+    
+    def r2(self):
+        """
+        Description : Computes the R2 for both train and test sets
+        """
+        train_ss_res = np.sum((self.train_real - self.train_pred) ** 2)
+        train_ss_tot = np.sum((self.train_real - np.mean(self.train_real)) ** 2)
+        train_r2 = 1 - (train_ss_res / train_ss_tot)
+
+        test_ss_res = np.sum((self.test_real - self.test_pred) ** 2)
+        test_ss_tot = np.sum((self.test_real - np.mean(self.test_real)) ** 2)
+        test_r2 = 1 - (test_ss_res / test_ss_tot)
+
+        return train_r2, test_r2
+    
+    def all_metrics(self):
+        """
+        Description : Computes all metrics for both train and test sets
+        """
+        train_mae, test_mae = self.mae()
+        train_rmse, test_rmse = self.rmse()
+        train_mape, test_mape = self.mape()
+        train_r2, test_r2 = self.r2()
+
+        return {
+            "train": {
+                "mae": train_mae,
+                "rmse": train_rmse,
+                "mape": train_mape,
+                "r2": train_r2
+            },
+            "test": {
+                "mae": test_mae,
+                "rmse": test_rmse,
+                "mape": test_mape,
+                "r2": test_r2
+            }
+        }
