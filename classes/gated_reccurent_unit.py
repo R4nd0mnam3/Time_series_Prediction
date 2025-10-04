@@ -1,46 +1,15 @@
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
+import itertools
 import classes.tools as tools
 
 class GRU(tools.train_test_split):
-    def __init__(self, dependent_time_series, train_test_ratio=0.8, lookback=10, hidden_size=64, num_layers=2, epochs=50, lr=0.001, device=None):
+    def __init__(self, dependent_time_series, train_test_ratio=0.8, epochs=50, lr=0.001, device=None):
         super().__init__(dependent_time_series, train_test_ratio)
-        self.lookback = lookback
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
         self.epochs = epochs
         self.lr = lr
-        self.device = device if device else ("cuda" if torch.cuda.is_available() else "cpu")
-
-        # placeholders
-        self.model = None
-        self.train_X, self.train_y = None, None
-        self.test_X, self.test_y = None, None
-
-    def create_sequences(self, data, lookback):
-        """
-        Convert 1D time series into sequences of shape (samples, lookback, 1)
-        """
-        X, y = [], []
-        for i in range(len(data) - lookback):
-            X.append(data[i:i+lookback])
-            y.append(data[i+lookback])
-        return np.array(X), np.array(y)
-
-    def prepare_data(self):
-        """
-        Prepares train/test datasets with lookback windowing
-        """
-        self.train_test_split()
-        self.train_X, self.train_y = self.create_sequences(self.train_dependent, self.lookback)
-        self.test_X, self.test_y = self.create_sequences(self.test_dependent, self.lookback)
-
-        # reshape for GRU: (samples, timesteps, features)
-        self.train_X = torch.tensor(self.train_X, dtype=torch.float32).unsqueeze(-1).to(self.device)
-        self.train_y = torch.tensor(self.train_y, dtype=torch.float32).to(self.device)
-        self.test_X = torch.tensor(self.test_X, dtype=torch.float32).unsqueeze(-1).to(self.device)
-        self.test_y = torch.tensor(self.test_y, dtype=torch.float32).to(self.device)
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
 
     class GRUNet(nn.Module):
         def __init__(self, input_size, hidden_size, num_layers):
@@ -49,42 +18,91 @@ class GRU(tools.train_test_split):
             self.fc = nn.Linear(hidden_size, 1)
 
         def forward(self, x):
-            out, _ = self.gru(x)  # out: (batch, seq_len, hidden_size)
-            out = out[:, -1, :]   # last time step
+            out, _ = self.gru(x)
+            out = out[:, -1, :]
             return self.fc(out)
 
-    def build_model(self):
-        self.model = self.GRUNet(input_size=1, hidden_size=self.hidden_size, num_layers=self.num_layers).to(self.device)
+    def create_sequences(self, data, lookback):
+        X, y = [], []
+        for i in range(len(data) - lookback):
+            X.append(data[i:i + lookback])
+            y.append(data[i + lookback])
+        return np.array(X), np.array(y)
 
-    def train(self):
-        self.prepare_data()
-        self.build_model()
+    def train_one(self, X_train, y_train, lookback, hidden_size, num_layers):
+        model = self.GRUNet(1, hidden_size, num_layers).to(self.device)
         criterion = nn.MSELoss()
-        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
+        optimizer = torch.optim.Adam(model.parameters(), lr=self.lr)
 
-        for epoch in range(self.epochs):
-            self.model.train()
+        X_train = torch.tensor(X_train, dtype=torch.float32).unsqueeze(-1).to(self.device)
+        y_train = torch.tensor(y_train, dtype=torch.float32).to(self.device)
+
+        for _ in range(self.epochs):
+            model.train()
             optimizer.zero_grad()
-            outputs = self.model(self.train_X)
-            loss = criterion(outputs.squeeze(), self.train_y)
+            pred = model(X_train).squeeze()
+            loss = criterion(pred, y_train)
             loss.backward()
             optimizer.step()
 
-            if (epoch+1) % 10 == 0 or epoch == 0:
-                print(f"Epoch [{epoch+1}/{self.epochs}], Loss: {loss.item():.6f}")
+        return model
+
+    def compute_aic(self, model, X_val, y_val):
+        model.eval()
+        X_val = torch.tensor(X_val, dtype=torch.float32).unsqueeze(-1).to(self.device)
+        y_val = torch.tensor(y_val, dtype=torch.float32).to(self.device)
+
+        with torch.no_grad():
+            y_pred = model(X_val).squeeze().cpu().numpy()
+            y_true = y_val.cpu().numpy()
+
+        rss = np.sum((y_true - y_pred)**2)
+        n = len(y_true)
+        mse = rss / n
+        k = sum(p.numel() for p in model.parameters())
+        return n * np.log(mse + 1e-9) + 2 * k
+
+    def tune(self, param_grid):
+        self.train_test_split()
+        series = self.train_dependent
+        best_aic = np.inf
+        best_params = None
+
+        for lookback, hidden_size, num_layers in itertools.product(
+            param_grid["lookback"], param_grid["hidden_size"], param_grid["num_layers"]
+        ):
+            X, y = self.create_sequences(series, lookback)
+            split = int(len(X) * 0.8)
+            X_train, X_val = X[:split], X[split:]
+            y_train, y_val = y[:split], y[split:]
+
+            model = self.train_one(X_train, y_train, lookback, hidden_size, num_layers)
+            aic = self.compute_aic(model, X_val, y_val)
+
+            print(f"lookback={lookback}, hidden={hidden_size}, layers={num_layers} → AIC={aic:.2f}")
+
+            if aic < best_aic:
+                best_aic = aic
+                best_params = (lookback, hidden_size, num_layers)
+
+        print(f"\n✅ Best parameters: lookback={best_params[0]}, hidden={best_params[1]}, layers={best_params[2]}")
+        print(f"Best AIC: {best_aic:.2f}")
+
+        # entraînement final
+        self.best_params = best_params
+        lookback, hidden_size, num_layers = best_params
+        X, y = self.create_sequences(self.train_dependent, lookback)
+        self.model = self.train_one(X, y, lookback, hidden_size, num_layers)
+        self.lookback = lookback
 
     def predict(self, data="test"):
-        """
-        Predict on 'test' or 'train' dataset
-        """
-        self.model.eval()
         if data == "test":
-            with torch.no_grad():
-                preds = self.model(self.test_X).cpu().numpy()
-            return preds, self.test_y.cpu().numpy()
-        elif data == "train":
-            with torch.no_grad():
-                preds = self.model(self.train_X).cpu().numpy()
-            return preds, self.train_y.cpu().numpy()
+            series = self.test_dependent
         else:
-            raise ValueError("data must be 'train' or 'test'")
+            series = self.train_dependent
+        X, y = self.create_sequences(series, self.lookback)
+        X = torch.tensor(X, dtype=torch.float32).unsqueeze(-1).to(self.device)
+        self.model.eval()
+        with torch.no_grad():
+            preds = self.model(X).squeeze().cpu().numpy()
+        return preds, y
