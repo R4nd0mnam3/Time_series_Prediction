@@ -17,11 +17,11 @@ class train_test_split:
         elif self.train_test_ratio is not None:
             split_index = int(len(self.dependent_time_series) * self.train_test_ratio)
             self.train_dependent = self.dependent_time_series[:split_index]
-            self.test_dependent = self.dependent_time_series[split_index:]
+            self.test_dependent = self.dependent_time_series[split_index:].reset_index(drop=True)
 
         elif self.split_index is not None:
             self.train_dependent = self.dependent_time_series[:self.split_index]
-            self.test_dependent = self.dependent_time_series[self.split_index:]
+            self.test_dependent = self.dependent_time_series[self.split_index:].reset_index(drop=True)
 
 class model_metrics:
     def __init__(self, train_real, train_pred, test_real, test_pred):

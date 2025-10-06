@@ -77,31 +77,30 @@ class GRU(tools.train_test_split):
             X_train, X_val = X[:split], X[split:]
             y_train, y_val = y[:split], y[split:]
 
-            model = self.train_one(X_train, y_train, lookback, hidden_size, num_layers)
+            model = self.train_one(X_train, y_train, hidden_size, num_layers)
             aic = self.compute_aic(model, X_val, y_val)
 
             print(f"lookback={lookback}, hidden={hidden_size}, layers={num_layers} → AIC={aic:.2f}")
 
             if aic < best_aic:
                 best_aic = aic
-                best_params = (lookback, hidden_size, num_layers)
-
-        print(f"\n✅ Best parameters: lookback={best_params[0]}, hidden={best_params[1]}, layers={best_params[2]}")
+                best_params = {"lookback" : lookback, "hidden_size" : hidden_size, "num_layers" : num_layers}
+        
+        self.best_params = best_params
+        print(f"\n✅ Best parameters: lookback={self.best_params["lookback"]}, hidden={self.best_params["hidden_size"]}, layers={self.best_params["num_layers"]}")
         print(f"Best AIC: {best_aic:.2f}")
 
         # entraînement final
         self.best_params = best_params
-        lookback, hidden_size, num_layers = best_params
-        X, y = self.create_sequences(self.train_dependent, lookback)
-        self.model = self.train_one(X, y, lookback, hidden_size, num_layers)
-        self.lookback = lookback
+        X, y = self.create_sequences(self.train_dependent, self.best_params["lookback"])
+        self.model = self.train_one(X, y, self.best_params["hidden_size"], self.best_params["num_layers"])
 
     def predict(self, data="test"):
         if data == "test":
-            series = self.test_dependent
+            X, y = self.create_sequences(self.test_dependent, self.best_params["lookback"])
         else:
-            series = self.train_dependent
-        X, y = self.create_sequences(series, self.lookback)
+            X, y = self.create_sequences(self.train_dependent, self.best_params["lookback"])
+    
         X = torch.tensor(X, dtype=torch.float32).unsqueeze(-1).to(self.device)
         self.model.eval()
         with torch.no_grad():
