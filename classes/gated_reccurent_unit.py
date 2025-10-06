@@ -5,7 +5,7 @@ import itertools
 import classes.tools as tools
 
 class GRU(tools.train_test_split):
-    def __init__(self, dependent_time_series, train_test_ratio=0.8, epochs=50, lr=0.001, device=None):
+    def __init__(self, dependent_time_series, train_test_ratio=None, split_index=None, epochs=50, lr=0.001, device=None):
         super().__init__(dependent_time_series, train_test_ratio)
         self.epochs = epochs
         self.lr = lr
@@ -29,7 +29,7 @@ class GRU(tools.train_test_split):
             y.append(data[i + lookback])
         return np.array(X), np.array(y)
 
-    def train_one(self, X_train, y_train, lookback, hidden_size, num_layers):
+    def train_one(self, X_train, y_train, hidden_size, num_layers):
         model = self.GRUNet(1, hidden_size, num_layers).to(self.device)
         criterion = nn.MSELoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=self.lr)
@@ -60,6 +60,7 @@ class GRU(tools.train_test_split):
         n = len(y_true)
         mse = rss / n
         k = sum(p.numel() for p in model.parameters())
+        
         return n * np.log(mse + 1e-9) + 2 * k
 
     def tune(self, param_grid):
