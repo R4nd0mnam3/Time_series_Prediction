@@ -1,0 +1,10 @@
+ARIMA : 
+-   Input : Differentiated series
+-   Output : model, forecast, metrics
+-   Description  : Selects the best model based on AIC criterion
+
+GRU : 
+-   Input : Normalized time series (min-max normalizing), epochs, learning rate
+-   Output :model, forecast, metrics
+-   Description : Selects the best model based on MSE criterion using L2 regularization to prevent overfitting
+-   Improvements : Dropouts to reduce overfitting
