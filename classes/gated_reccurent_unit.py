@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 import itertools
-import tools
+import classes.tools as tools
 
 class GRU(tools.train_test_split):
     def __init__(self, dependent_time_series, train_test_ratio=None, split_index=None, epochs=50, lr=0.001, device=None):
@@ -76,23 +76,24 @@ class GRU(tools.train_test_split):
             model = self.train_one(X_train, y_train, hidden_size, num_layers, l2)
             mse = self.compute_mse(model, X_val, y_val)
 
-            print(f"lookback={lookback}, hidden={hidden_size}, layers={num_layers} → MSE={mse:.6f}")
+            print(f"lookback={lookback}, hidden={hidden_size}, layers={num_layers}, l2={l2} → MSE={mse:.6f}")
 
             if mse < best_mse:
                 best_mse = mse
                 best_params = {
                     "lookback": lookback,
                     "hidden_size": hidden_size,
-                    "num_layers": num_layers
+                    "num_layers": num_layers,
+                    "l2" : l2
                 }
 
         self.best_params = best_params
-        print(f"\n✅ Best parameters: lookback={best_params['lookback']}, hidden={best_params['hidden_size']}, layers={best_params['num_layers']}")
+        print(f"\n✅ Best parameters: lookback={best_params['lookback']}, hidden={best_params['hidden_size']}, layers={best_params['num_layers']}, l2={best_params['num_layers']}")
         print(f"Best MSE: {best_mse:.6f}")
 
         # Final training with best parameters
         X, y = self.create_sequences(self.train_dependent, best_params["lookback"])
-        self.model = self.train_one(X, y, best_params["hidden_size"], best_params["num_layers"])
+        self.model = self.train_one(X, y, best_params["hidden_size"], best_params["num_layers"], best_params["l2"])
 
     def predict(self, data="test"):
         if data == "test":
