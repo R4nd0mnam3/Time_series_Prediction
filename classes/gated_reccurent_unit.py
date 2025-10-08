@@ -20,6 +20,7 @@ class GRU(tools.train_test_split):
         def forward(self, x):
             out, _ = self.gru(x)
             out = out[:, -1, :]
+
             return self.fc(out)
 
     def create_sequences(self, data, lookback):
@@ -27,6 +28,7 @@ class GRU(tools.train_test_split):
         for i in range(len(data) - lookback):
             X.append(data[i:i + lookback])
             y.append(data[i + lookback])
+
         return np.array(X), np.array(y)
 
     def train_one(self, X_train, y_train, hidden_size, num_layers, l2):
@@ -47,34 +49,32 @@ class GRU(tools.train_test_split):
 
         return model
 
-    def compute_mse(self, model, X_val, y_val):
+    def compute_mse(self, model, X_test, y_test):
         model.eval()
-        X_val = torch.tensor(X_val, dtype=torch.float32).unsqueeze(-1).to(self.device)
-        y_val = torch.tensor(y_val, dtype=torch.float32).to(self.device)
+        X_test = torch.tensor(X_test, dtype=torch.float32).unsqueeze(-1).to(self.device)
+        y_test = torch.tensor(y_test, dtype=torch.float32).to(self.device)
 
         with torch.no_grad():
-            y_pred = model(X_val).squeeze().cpu().numpy()
-            y_true = y_val.cpu().numpy()
+            y_pred = model(X_test).squeeze().cpu().numpy()
+            y_true = y_test.cpu().numpy()
 
         mse = np.mean((y_true - y_pred) ** 2)
+
         return mse
 
     def tune(self, param_grid):
         self.train_test_split()
-        series = self.train_dependent
         best_mse = np.inf
         best_params = None
 
         for lookback, hidden_size, num_layers, l2 in itertools.product(
             param_grid["lookback"], param_grid["hidden_size"], param_grid["num_layers"], param_grid["l2"]
         ):
-            X, y = self.create_sequences(series, lookback)
-            split = int(len(X) * 0.8)
-            X_train, X_val = X[:split], X[split:]
-            y_train, y_val = y[:split], y[split:]
+            X_train, y_train = self.create_sequences(self.train_dependent, lookback)
+            X_test, y_test = self.create_sequences(self.test_dependent, lookback)
 
             model = self.train_one(X_train, y_train, hidden_size, num_layers, l2)
-            mse = self.compute_mse(model, X_val, y_val)
+            mse = self.compute_mse(model, X_test, y_test)
 
             print(f"lookback={lookback}, hidden={hidden_size}, layers={num_layers}, l2={l2} → MSE={mse:.6f}")
 
@@ -105,4 +105,5 @@ class GRU(tools.train_test_split):
         self.model.eval()
         with torch.no_grad():
             preds = self.model(X).squeeze().cpu().numpy()
+        
         return preds, y
