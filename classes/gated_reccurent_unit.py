@@ -78,14 +78,127 @@ class GRU(tools.train_test_split):
             
             new_mse = self.compute_mse(model, X_test, y_test)
 
-            if old_mse - new_mse > 0.001 : # If MSE evolves we haven't reached the optimal number of epochs
+            if old_mse - new_mse > 0.0001 : # If MSE evolves we haven't reached the optimal number of epochs
                 old_mse = new_mse
             
             else : # We reached the optimal number of epochs
                 training_params["epochs"] = epoch
 
-        
+        # Tune LR
+
+
+
+        # Tune L2
+
+
+
         self.training_params = training_params
+
+def tune_train(self, train_param_grid, model_param):
+    lookback = model_param["lookback"]
+    hidden_size = model_param["hidden_size"]
+    num_layers = model_param["num_layers"]
+
+    epochs_mid, patience, min_delta, n_splits, val_size, min_train = train_param_grid["epochs_mid"], train_param_grid["patience"], train_param_grid["min_delta"],  train_param_grid["n_splits"], train_param_grid["val_size"], train_param_grid["min_train_size"]
+
+    full = np.asarray(self.train_dependent, dtype=float)
+
+    def last_lookback_tail(arr):
+        """Renvoie les 'lookback' derniers points (ou moins si array court)."""
+        k = min(len(arr), lookback)
+        return arr[-k:]
+
+    split_points = []
+    train_end_start = max(min_train, lookback + 1)
+    # espace disponible après train pour au moins un bloc de validation
+    max_train_end = len(full) - val_size
+
+    # positions de fin de train réparties à peu près uniformément
+    steps = np.linspace(train_end_start, max_train_end, num=n_splits, dtype=int)
+    for train_end in steps:
+        val_start = train_end
+        val_end = val_start + val_size
+        if val_end <= len(full):
+            split_points.append((train_end, val_start, val_end))
+    if not split_points:
+        raise ValueError("Impossible de construire des folds de CV valides.")
+
+    def cv_score_for(lr, l2):
+        """Moyenne du MSE validation sur les folds (epochs = epochs_mid)."""
+        mses = []
+        for (train_end, val_start, val_end) in split_points:
+            train_arr = full[:train_end]
+            val_arr = full[val_start:val_end]
+
+            # Pour créer les séquences de validation, on fournit l'historique nécessaire:
+            # concatène la queue 'lookback' du train à la validation pour disposer du contexte
+            val_with_ctx = np.concatenate([last_lookback_tail(train_arr), val_arr])
+
+            # Séquences train
+            Xtr, ytr = self.create_sequences(train_arr, lookback)
+            if len(ytr) == 0:
+                continue  # pas assez de points
+
+            # Séquences val (avec contexte), puis on ne garde que les dernières cibles (val_size)
+            Xv_all, yv_all = self.create_sequences(val_with_ctx, lookback)
+            if len(yv_all) == 0:
+                continue
+            # yv_all correspond aux positions après 'lookback' dans val_with_ctx;
+            # on ne conserve que les cibles dont l'index tombe dans la vraie fenêtre validation
+            # mais comme on a préfixé par <= lookback points, les 'dernières' séquences correspondent à la val:
+            take = min(len(yv_all), val_size)
+            Xval, yval = Xv_all[-take:], yv_all[-take:]
+
+            model = self.train_one(Xtr, ytr, hidden_size, num_layers, l2, lr, epochs_mid)
+            mses.append(self.compute_mse(model, Xval, yval))
+
+        if not mses:
+            return float("inf")
+        return float(np.mean(mses))
+
+    # grille (lr, l2)
+    best_lr, best_l2, best_cv = None, None, float("inf")
+    for lr, l2 in itertools.product(train_param_grid["lrs"], train_param_grid["l2"]):
+        cv_mse = cv_score_for(lr, l2)
+        if cv_mse < best_cv:
+            best_cv = cv_mse
+            best_lr, best_l2 = lr, l2
+
+    # ==============================
+    # 2) Early stopping pour epochs
+    # ==============================
+    # On utilise le split le plus récent (dernier fold) pour mimer le futur proche.
+    train_end, val_start, val_end = split_points[-1]
+    train_arr = full[:train_end]
+    val_arr   = full[val_start:val_end]
+    val_with_ctx = np.concatenate([last_lookback_tail(train_arr), val_arr])
+
+    Xtr, ytr = self.create_sequences(train_arr, lookback)
+    Xv_all, yv_all = self.create_sequences(val_with_ctx, lookback)
+    take = min(len(yv_all), val_size)
+    Xval, yval = Xv_all[-take:], yv_all[-take:]
+
+    epochs_grid = sorted(train_param_grid["epochs"])
+    # point de départ
+    best_epoch = epochs_grid[0]
+    model = self.train_one(Xtr, ytr, hidden_size, num_layers, best_l2, best_lr, best_epoch)
+    best_mse = self.compute_mse(model, Xval, yval)
+
+    no_improve = 0
+    for ep in epochs_grid[1:]:
+        model = self.train_one(Xtr, ytr, hidden_size, num_layers, best_l2, best_lr, ep)
+        mse = self.compute_mse(model, Xval, yval)
+        if (best_mse - mse) > min_delta:
+            best_mse, best_epoch = mse, ep
+            no_improve = 0
+        else:
+            no_improve += 1
+            if no_improve >= patience:
+                break
+
+    self.training_params = {"lr": best_lr, "l2": best_l2, "epochs": best_epoch}
+                           
+    print(f"Training results: cv_mse : {best_cv}, val_size : {val_size}, n_splits : {len(split_points)}")
 
 
 
