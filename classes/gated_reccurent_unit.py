@@ -5,32 +5,78 @@ import itertools
 import classes.tools as tools
 
 class GRU(tools.train_test_split):
+    """
+    Description :
+    GRU-based time series forecasting model with train-test split, hyperparameter tuning, 
+    and prediction functionality.
+    
+    Arguments :
+    - dependent_time_series (array-like): Input time series data.
+    - train_test_ratio (float, optional): Ratio for splitting the data into train/test sets.
+    - split_index (int, optional): Custom index for train-test split.
+    - device (str, optional): Computational device ('cpu' or 'cuda').
+    """
     def __init__(self, dependent_time_series, train_test_ratio=None, split_index=None, device=None):
         super().__init__(dependent_time_series, train_test_ratio)
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.train_test_split()
 
     class GRUNet(nn.Module):
+        """
+        Description :
+        Defines the GRU neural network architecture used for time series regression.
+        
+        Arguments :
+        - input_size (int): Number of input features.
+        - hidden_size (int): Number of hidden units in the GRU layer.
+        - num_layers (int): Number of stacked GRU layers.
+        """
         def __init__(self, input_size, hidden_size, num_layers):
             super().__init__()
             self.gru = nn.GRU(input_size, hidden_size, num_layers, batch_first=True)
             self.fc = nn.Linear(hidden_size, 1)
 
         def forward(self, x):
+            """
+            Description :
+            Defines the forward pass of the GRU network.
+            
+            Arguments :
+            - x (Tensor): Input tensor of shape (batch_size, seq_length, input_size).
+            """
             out, _ = self.gru(x)
             out = out[:, -1, :]
-
             return self.fc(out)
 
     def create_sequences(self, data, lookback):
+        """
+        Description :
+        Converts a univariate time series into input-output sequences for supervised learning.
+        
+        Arguments :
+        - data (array-like): Input time series data.
+        - lookback (int): Number of previous time steps to include in each input sequence.
+        """
         X, y = [], []
         for i in range(len(data) - lookback):
             X.append(data[i:i + lookback])
             y.append(data[i + lookback])
-
         return np.array(X), np.array(y)
 
     def train_one(self, X_train, y_train, hidden_size, num_layers, l2, lr, epochs):
+        """
+        Description :
+        Trains a single GRU model on the provided training data.
+        
+        Arguments :
+        - X_train (array): Training input sequences.
+        - y_train (array): Training target values.
+        - hidden_size (int): Number of hidden units in the GRU layer.
+        - num_layers (int): Number of stacked GRU layers.
+        - l2 (float): L2 regularization coefficient (weight decay).
+        - lr (float): Learning rate for the optimizer.
+        - epochs (int): Number of training epochs.
+        """
         model = self.GRUNet(1, hidden_size, num_layers).to(self.device)
         criterion = nn.MSELoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=l2)
@@ -49,6 +95,15 @@ class GRU(tools.train_test_split):
         return model
 
     def compute_mse(self, model, X_test, y_test):
+        """
+        Description :
+        Computes Mean Squared Error (MSE) between predicted and true values.
+        
+        Arguments :
+        - model (nn.Module): Trained GRU model.
+        - X_test (array): Test input sequences.
+        - y_test (array): True target values for test data.
+        """
         model.eval()
         X_test = torch.tensor(X_test, dtype=torch.float32).unsqueeze(-1).to(self.device)
         y_test = torch.tensor(y_test, dtype=torch.float32).to(self.device)
@@ -58,10 +113,18 @@ class GRU(tools.train_test_split):
             y_true = y_test.cpu().numpy()
 
         mse = np.mean((y_true - y_pred) ** 2)
-
         return mse
 
     def tune_train(self, train_param_grid, model_param):
+        """
+        Description :
+        Tunes learning rate, regularization, and number of epochs using cross-validation
+        and early stopping on the training set.
+        
+        Arguments :
+        - train_param_grid (dict): Hyperparameter grid for training (lr, l2, epochs, etc.).
+        - model_param (dict): Model configuration parameters (lookback, hidden_size, num_layers).
+        """
         lookback = model_param["lookback"]
         hidden_size = model_param["hidden_size"]
         num_layers = model_param["num_layers"]
@@ -71,16 +134,19 @@ class GRU(tools.train_test_split):
         full = np.asarray(self.train_dependent, dtype=float)
 
         def last_lookback_tail(arr):
-            """Renvoie les 'lookback' derniers points (ou moins si array court)."""
+            """
+            Description :
+            Returns the last 'lookback' points of the array (or fewer if shorter).
+            
+            Arguments :
+            - arr (array): Input array to extract context from.
+            """
             k = min(len(arr), lookback)
             return arr[-k:]
 
         split_points = []
         train_end_start = max(min_train, lookback + 1)
-        # espace disponible après train pour au moins un bloc de validation
         max_train_end = len(full) - val_size
-
-        # positions de fin de train réparties à peu près uniformément
         steps = np.linspace(train_end_start, max_train_end, num=n_splits, dtype=int)
         for train_end in steps:
             val_start = train_end
@@ -89,28 +155,27 @@ class GRU(tools.train_test_split):
                 split_points.append((train_end, val_start, val_end))
 
         def cv_score_for(lr, l2):
-            """Moyenne du MSE validation sur les folds (epochs = epochs_mid)."""
+            """
+            Description :
+            Computes average validation MSE across multiple folds for given lr and l2.
+            
+            Arguments :
+            - lr (float): Learning rate for training.
+            - l2 (float): L2 regularization coefficient.
+            """
             mses = []
             for (train_end, val_start, val_end) in split_points:
                 train_arr = full[:train_end]
                 val_arr = full[val_start:val_end]
-
-                # Pour créer les séquences de validation, on fournit l'historique nécessaire:
-                # concatène la queue 'lookback' du train à la validation pour disposer du contexte
                 val_with_ctx = np.concatenate([last_lookback_tail(train_arr), val_arr])
 
-                # Séquences train
                 Xtr, ytr = self.create_sequences(train_arr, lookback)
                 if len(ytr) == 0:
-                    continue  # pas assez de points
+                    continue
 
-                # Séquences val (avec contexte), puis on ne garde que les dernières cibles (val_size)
                 Xv_all, yv_all = self.create_sequences(val_with_ctx, lookback)
                 if len(yv_all) == 0:
                     continue
-                # yv_all correspond aux positions après 'lookback' dans val_with_ctx;
-                # on ne conserve que les cibles dont l'index tombe dans la vraie fenêtre validation
-                # mais comme on a préfixé par <= lookback points, les 'dernières' séquences correspondent à la val:
                 take = min(len(yv_all), val_size)
                 Xval, yval = Xv_all[-take:], yv_all[-take:]
 
@@ -121,7 +186,6 @@ class GRU(tools.train_test_split):
                 return float("inf")
             return float(np.mean(mses))
 
-        # grille (lr, l2)
         best_lr, best_l2, best_cv = None, None, float("inf")
         for lr, l2 in itertools.product(train_param_grid["lrs"], train_param_grid["l2"]):
             cv_mse = cv_score_for(lr, l2)
@@ -129,14 +193,9 @@ class GRU(tools.train_test_split):
                 best_cv = cv_mse
                 best_lr, best_l2 = lr, l2
 
-        # ==============================
-        # 2) Early stopping pour epochs
-        # ==============================
-        # On utilise le split le plus récent (dernier fold) pour mimer le futur proche.
-
         train_end, val_start, val_end = split_points[-1]
         train_arr = full[:train_end]
-        val_arr   = full[val_start:val_end]
+        val_arr = full[val_start:val_end]
         val_with_ctx = np.concatenate([last_lookback_tail(train_arr), val_arr])
 
         Xtr, ytr = self.create_sequences(train_arr, lookback)
@@ -145,7 +204,6 @@ class GRU(tools.train_test_split):
         Xval, yval = Xv_all[-take:], yv_all[-take:]
 
         epochs_grid = sorted(train_param_grid["epochs"])
-        # point de départ
         best_epoch = epochs_grid[0]
         model = self.train_one(Xtr, ytr, hidden_size, num_layers, best_l2, best_lr, best_epoch)
         best_mse = self.compute_mse(model, Xval, yval)
@@ -163,10 +221,17 @@ class GRU(tools.train_test_split):
                     break
 
         self.training_params = {"lr": best_lr, "l2": best_l2, "epochs": best_epoch}
-                            
         print(f"Training results: cv_mse : {best_cv}, val_size : {val_size}, n_splits : {len(split_points)}")
 
     def tune_model(self, model_param_grid):
+        """
+        Description :
+        Tunes model architecture parameters (lookback, hidden_size, num_layers)
+        to minimize test MSE using pre-tuned training hyperparameters.
+        
+        Arguments :
+        - model_param_grid (dict): Grid of model structure parameters to search.
+        """
         best_mse = np.inf
         best_params = None
 
@@ -174,10 +239,10 @@ class GRU(tools.train_test_split):
             model_param_grid["lookback"], model_param_grid["hidden_size"], model_param_grid["num_layers"]
         ):
             X_train, y_train = self.create_sequences(self.train_dependent, lookback)
-            X_test, y_test = self.create_sequences(self.test_dependent, lookback) # Not relevant as we won't have this data
+            X_test, y_test = self.create_sequences(self.test_dependent, lookback)
 
             model = self.train_one(X_train, y_train, hidden_size, num_layers, self.training_params["l2"], self.training_params["lr"], self.training_params["epochs"])
-            mse = self.compute_mse(model, X_test, y_test) 
+            mse = self.compute_mse(model, X_test, y_test)
 
             print(f"lookback={lookback}, hidden={hidden_size}, layers={num_layers} → MSE={mse:.6f}")
 
@@ -193,11 +258,17 @@ class GRU(tools.train_test_split):
         print(f"\n✅ Best parameters: lookback={self.model_params['lookback']}, hidden={self.model_params['hidden_size']}, layers={self.model_params['num_layers']}")
         print(f"Best MSE: {best_mse:.6f}")
 
-        # Final training with best parameters
         X, y = self.create_sequences(self.train_dependent, self.model_params["lookback"])
         self.model = self.train_one(X, y, self.model_params["hidden_size"], self.model_params["num_layers"], self.training_params["l2"], self.training_params["lr"], self.training_params["epochs"])
 
     def predict(self, data="test"):
+        """
+        Description :
+        Generates predictions using the trained GRU model on either test or train data.
+        
+        Arguments :
+        - data (str): Dataset to predict on ('train' or 'test').
+        """
         if data == "test":
             X, y = self.create_sequences(self.test_dependent, self.model_params["lookback"])
         elif data == "train":
