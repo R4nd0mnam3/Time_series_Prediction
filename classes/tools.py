@@ -23,6 +23,7 @@ class train_test_split:
             self.train_dependent = self.dependent_time_series[:self.split_index]
             self.test_dependent = self.dependent_time_series[self.split_index:].reset_index(drop=True)
 
+
 class model_metrics:
     def __init__(self, train_real, train_pred, test_real, test_pred):
         self.train_real = train_real

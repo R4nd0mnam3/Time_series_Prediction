@@ -8,7 +8,8 @@ import classes.tools as tools
 class  LineaTimeSeriesModel(tools.train_test_split):
     def __init__(self, dependent_time_series, train_test_ratio = 0.8):
         super().__init__(dependent_time_series, train_test_ratio)
-    
+        self.train_test_split()
+
     def get_ar_max_order(self, max_lag=10):
         """
         Description : Selects the maximum order of the AR model using PACF cutoff method
