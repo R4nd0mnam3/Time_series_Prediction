@@ -2,26 +2,26 @@ import numpy as np
 from sklearn.metrics import mean_squared_error
 
 class train_test_split:
-    def __init__(self, dependent_time_series, train_test_ratio=None, split_index=None):
+    def __init__(self, dependent_time_series, train_validation_ratio=None, split_index=None):
         self.dependent_time_series = dependent_time_series
-        self.train_test_ratio = train_test_ratio
+        self.train_validation_ratio = train_validation_ratio
         self.split_index = split_index
 
     def train_test_split(self):
         """
         Description : Split the data between train and test depedning on either train_test_ratio or split_index
         """
-        if self.split_index is None and self.train_test_ratio is None :
+        if self.split_index is None and self.train_validation_ratio is None :
             raise ValueError("Either train_test_ratio or split_index must be provided.")    
         
-        elif self.train_test_ratio is not None:
-            split_index = int(len(self.dependent_time_series) * self.train_test_ratio)
+        elif self.train_validation_ratio is not None:
+            split_index = int(len(self.dependent_time_series) * self.train_validation_ratio)
             self.train_dependent = self.dependent_time_series[:split_index]
-            self.test_dependent = self.dependent_time_series[split_index:].reset_index(drop=True)
+            self.validation_dependent = self.dependent_time_series[split_index:].reset_index(drop=True)
 
         elif self.split_index is not None:
             self.train_dependent = self.dependent_time_series[:self.split_index]
-            self.test_dependent = self.dependent_time_series[self.split_index:].reset_index(drop=True)
+            self.validation_dependent = self.dependent_time_series[self.split_index:].reset_index(drop=True)
 
 
 class model_metrics:

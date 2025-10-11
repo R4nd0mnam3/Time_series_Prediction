@@ -239,7 +239,7 @@ class GRU(tools.train_test_split):
             model_param_grid["lookback"], model_param_grid["hidden_size"], model_param_grid["num_layers"]
         ):
             X_train, y_train = self.create_sequences(self.train_dependent, lookback)
-            X_test, y_test = self.create_sequences(self.test_dependent, lookback)
+            X_test, y_test = self.create_sequences(np.concatenate([self.train_dependent[-lookback:], self.validation_dependent]), lookback)
 
             model = self.train_one(X_train, y_train, hidden_size, num_layers, self.training_params["l2"], self.training_params["lr"], self.training_params["epochs"])
             mse = self.compute_mse(model, X_test, y_test)
@@ -269,8 +269,8 @@ class GRU(tools.train_test_split):
         Arguments :
         - data (str): Dataset to predict on ('train' or 'test').
         """
-        if data == "test":
-            X, y = self.create_sequences(self.test_dependent, self.model_params["lookback"])
+        if data == "validation":
+            X, y = self.create_sequences(np.concatenate([self.train_dependent[-self.model_params["lookback"]:], self.validation_dependent]), self.model_params["lookback"])
         elif data == "train":
             X, y = self.create_sequences(self.train_dependent, self.model_params["lookback"])
     
