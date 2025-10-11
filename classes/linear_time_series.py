@@ -82,7 +82,7 @@ class  LinearTimeSeriesModel(tools.train_test_split):
             for ar_order in range(self.ar_max_order + 1):
                 model_fit = self.get_model(self.train_dependent, ma_order, ar_order)
                 aic = model_fit.aic
-                aicc = self.aicc(aic, model_fit.k_params, len(self.train_dependent))
+                aicc = self.aicc(aic, model_fit.params.size, len(self.train_dependent))
 
                 # We conduct Ljung_Box test to see if the residuals are white noise
                 residuals = model_fit.resid

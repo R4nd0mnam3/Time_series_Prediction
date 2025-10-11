@@ -276,8 +276,6 @@ class LSTM(tools.train_test_split):
             X, y = self.create_sequences(np.concatenate([self.train_dependent[-self.model_params["lookback"]:], self.validation_dependent]), self.model_params["lookback"])
         elif data == "train":
             X, y = self.create_sequences(self.train_dependent, self.model_params["lookback"])
-        else:
-            raise ValueError("data must be 'train' or 'test'")
 
         X = torch.tensor(X, dtype=torch.float32).unsqueeze(-1).to(self.device)
         self.model.eval()

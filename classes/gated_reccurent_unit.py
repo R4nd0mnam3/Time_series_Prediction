@@ -221,7 +221,10 @@ class GRU(tools.train_test_split):
                     break
 
         self.training_params = {"lr": best_lr, "l2": best_l2, "epochs": best_epoch}
+        
         print(f"Training results: cv_mse : {best_cv}, val_size : {val_size}, n_splits : {len(split_points)}")
+
+        return self.training_params
 
     def tune_model(self, model_param_grid, train_params=None):
         """
@@ -261,7 +264,7 @@ class GRU(tools.train_test_split):
         print(f"Best MSE: {best_mse:.6f}")
 
         X, y = self.create_sequences(self.train_dependent, self.model_params["lookback"])
-        self.model = self.train_one(X, y, self.model_params["hidden_size"], train_params["l2"], train_params["lr"], train_params["epochs"])
+        self.model = self.train_one(X, y, self.model_params["hidden_size"], self.model_params["num_layers"], train_params["l2"], train_params["lr"], train_params["epochs"])
 
     def predict(self, data="test"):
         """
