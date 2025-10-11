@@ -223,7 +223,7 @@ class GRU(tools.train_test_split):
         self.training_params = {"lr": best_lr, "l2": best_l2, "epochs": best_epoch}
         print(f"Training results: cv_mse : {best_cv}, val_size : {val_size}, n_splits : {len(split_points)}")
 
-    def tune_model(self, model_param_grid):
+    def tune_model(self, model_param_grid, train_params=None):
         """
         Description :
         Tunes model architecture parameters (lookback, hidden_size, num_layers)
@@ -232,6 +232,8 @@ class GRU(tools.train_test_split):
         Arguments :
         - model_param_grid (dict): Grid of model structure parameters to search.
         """
+        if train_params is None :
+            train_params = self.training_params 
         best_mse = np.inf
         best_params = None
 
@@ -241,7 +243,7 @@ class GRU(tools.train_test_split):
             X_train, y_train = self.create_sequences(self.train_dependent, lookback)
             X_test, y_test = self.create_sequences(np.concatenate([self.train_dependent[-lookback:], self.validation_dependent]), lookback)
 
-            model = self.train_one(X_train, y_train, hidden_size, num_layers, self.training_params["l2"], self.training_params["lr"], self.training_params["epochs"])
+            model = self.train_one(X_train, y_train, hidden_size, num_layers, train_params["l2"], train_params["lr"], train_params["epochs"])
             mse = self.compute_mse(model, X_test, y_test)
 
             print(f"lookback={lookback}, hidden={hidden_size}, layers={num_layers} → MSE={mse:.6f}")
@@ -259,7 +261,7 @@ class GRU(tools.train_test_split):
         print(f"Best MSE: {best_mse:.6f}")
 
         X, y = self.create_sequences(self.train_dependent, self.model_params["lookback"])
-        self.model = self.train_one(X, y, self.model_params["hidden_size"], self.model_params["num_layers"], self.training_params["l2"], self.training_params["lr"], self.training_params["epochs"])
+        self.model = self.train_one(X, y, self.model_params["hidden_size"], train_params["l2"], train_params["lr"], train_params["epochs"])
 
     def predict(self, data="test"):
         """
@@ -280,3 +282,30 @@ class GRU(tools.train_test_split):
             preds = self.model(X).squeeze().cpu().numpy()
         
         return preds, y
+    
+    def predict_future(self, days):
+        """
+        Description :
+        Predicts future values for a specified number of days using the trained GRU model.
+
+        Arguments :
+        - days (int): Number of future time steps to forecast.
+        """
+        lookback = self.model_params["lookback"]
+        self.model.eval()
+
+        # Start from the last 'lookback' known values (train + validation)
+        history = np.concatenate([self.train_dependent, self.validation_dependent])[-lookback:].astype(float)
+        preds = []
+
+        for _ in range(days):
+            x_input = torch.tensor(history[-lookback:], dtype=torch.float32).unsqueeze(0).unsqueeze(-1).to(self.device)
+            
+            with torch.no_grad():
+                pred = self.model(x_input).item()
+            preds.append(pred)
+
+            # Append new prediction for next iteration
+            history = np.append(history, pred)
+
+        return np.array(preds)

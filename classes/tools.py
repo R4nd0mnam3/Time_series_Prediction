@@ -74,24 +74,26 @@ class model_metrics:
     
     def get_all_metrics(self):
         """
-        Description : Computes all metrics for both train and test sets
+        Description : Computes all metrics for both train and validation sets
         """
-        train_mae, test_mae = self.mae()
-        train_rmse, test_rmse = self.rmse()
-        train_mape, test_mape = self.mape()
-        train_r2, test_r2 = self.r2()
+        train_mae, validation_mae = self.mae()
+        train_rmse, validation_rmse = self.rmse()
+        train_mape, validation_mape = self.mape()
+        train_r2, validation_r2 = self.r2()
 
         return {
             "train": {
                 "mae": train_mae,
                 "rmse": train_rmse,
+                "mse" : train_rmse**2,
                 "mape": train_mape,
                 "r2": train_r2
             },
-            "test": {
-                "mae": test_mae,
-                "rmse": test_rmse,
-                "mape": test_mape,
-                "r2": test_r2
+            "validation": {
+                "mae": validation_mae,
+                "rmse": validation_rmse,
+                "mse" : validation_rmse**2,
+                "mape": validation_mape,
+                "r2": validation_r2
             }
         }
