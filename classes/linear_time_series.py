@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from statsmodels.tsa.stattools import pacf, acf
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.stats.diagnostic import acorr_ljungbox
@@ -10,13 +11,15 @@ class  LinearTimeSeriesModel(tools.train_test_split):
         super().__init__(dependent_time_series, train_test_ratio)
         self.train_test_split()
 
-    def get_ar_max_order(self, max_lag=10):
+    def get_ar_max_order(self, max_lag=10, plot=False):
         """
         Description : Selects the maximum order of the AR model using PACF cutoff method
         Argumments:
         - max_lag (int) : Maximum number of lags to consider
         """
         pacf_vals, confint = pacf(self.train_dependent, nlags=max_lag, alpha=0.05, method="yw")
+        lags = np.arange(len(pacf_vals))
+        
         order = 0
 
         for lo, hi in confint[1:]:
@@ -27,13 +30,33 @@ class  LinearTimeSeriesModel(tools.train_test_split):
 
         self.ar_max_order = order
 
-    def get_ma_max_order(self, max_lag=10):
+        if plot:
+            fig, ax = plt.subplots(figsize=(9, 4))
+            # ligne zéro
+            ax.axhline(0, linewidth=1, color='black')
+            # bande de confiance (5% => 95% CI)
+            ax.fill_between(lags, confint[:, 0], confint[:, 1], alpha=0.2)
+            # tiges ("piques") ACF
+            ax.vlines(lags[1:], 0, pacf_vals[1:], linewidth=1.5)   # tiges à partir de 0
+            ax.plot(lags[1:], pacf_vals[1:], 'o', ms=4)            # points en bout de tige
+
+            ax.set_xlim(0, max_lag)
+            ax.set_ylim(min(-0.2, confint[:,0].min()*1.05), 1.05)
+            ax.set_title("Partial Autocorrelation")
+            ax.set_xlabel("Lag")
+            ax.set_ylabel("PACF")
+            plt.tight_layout()
+            plt.show()
+
+    def get_ma_max_order(self, max_lag=10, plot=False):
         """
         Description : Selects the maximum order of the MA model using ACF cutoff method
         Argumments:
         - max_lag (int) : Maximum number of lags to consider
         """
         acf_vals, confint = acf(self.train_dependent, nlags=max_lag, alpha=0.05, fft=True)
+        lags = np.arange(len(acf_vals))
+        
         order = 0
         
         for lo, hi in confint[1:]:
@@ -43,7 +66,25 @@ class  LinearTimeSeriesModel(tools.train_test_split):
                 break
         
         self.ma_max_order = order
-    
+
+        if plot:
+            fig, ax = plt.subplots(figsize=(9, 4))
+            # ligne zéro
+            ax.axhline(0, linewidth=1, color='black')
+            # bande de confiance (5% => 95% CI)
+            ax.fill_between(lags, confint[:, 0], confint[:, 1], alpha=0.2)
+            # tiges ("piques") ACF
+            ax.vlines(lags[1:], 0, acf_vals[1:], linewidth=1.5)   # tiges à partir de 0
+            ax.plot(lags[1:], acf_vals[1:], 'o', ms=4)            # points en bout de tige
+
+            ax.set_xlim(0, max_lag)
+            ax.set_ylim(min(-0.2, confint[:,0].min()*1.05), 1.05)
+            ax.set_title("Autocorrelation")
+            ax.set_xlabel("Lag")
+            ax.set_ylabel("ACF")
+            plt.tight_layout()
+            plt.show()
+
     def get_model(self, series, ma_order, ar_order, integ=0):
         """
         Description : Fits an ARIMA model to the time series given the MA and AR orders
